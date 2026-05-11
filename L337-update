@@ -1,0 +1,87 @@
+#!/bin/sh
+
+# =============================================================================
+# L337-update — Pull latest L337-Merlin scripts from GitHub.
+#
+# Run manually from the router to update all scripts to the latest version
+# on the main branch. Config files are never touched; local settings are
+# preserved.
+#
+# Usage: /jffs/scripts/L337-update
+#
+# Bootstrap (first install, run once from router SSH):
+#   curl -fsSL https://raw.githubusercontent.com/GITHUB_USER/L337-Merlin/main/L337-update \
+#       -o /jffs/scripts/L337-update && chmod +x /jffs/scripts/L337-update \
+#       && /jffs/scripts/L337-update
+# =============================================================================
+
+PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+LOGTAG="L337-update"
+
+# Repository base URL. This is the single line to change if you are running
+# a fork — update GITHUB_USER and/or the repo name to match your fork.
+REPO_RAW="https://raw.githubusercontent.com/GITHUB_USER/L337-Merlin/main"
+
+INSTALL_DIR="/jffs/scripts"
+CURL="/usr/sbin/curl"
+
+log() { logger -t "$LOGTAG" "$*"; }
+
+# Merlin hook scripts retain their required firmware-facing filenames.
+# L337-specific scripts carry the L337- prefix.
+# Config files (/jffs/configs/L337.conf) are intentionally excluded.
+SCRIPTS="
+ddns-start
+nat-start
+services-start
+wan-event
+L337-log-dhcp-lease
+L337-planned-reboot
+L337-rotate-wan-log
+L337-verify-ddns
+L337-wan-lease-stats
+L337-wan-stats
+L337-wan-weekly-report
+L337-update
+"
+
+if [ ! -x "$CURL" ]; then
+    log "curl not found at $CURL; aborting"
+    exit 1
+fi
+
+ERRORS=0
+
+for SCRIPT in $SCRIPTS; do
+    [ -z "$SCRIPT" ] && continue
+
+    URL="${REPO_RAW}/${SCRIPT}"
+    DEST="${INSTALL_DIR}/${SCRIPT}"
+    TMP="${DEST}.tmp.$$"
+
+    if "$CURL" \
+            --silent \
+            --show-error \
+            --fail \
+            --connect-timeout 10 \
+            --max-time 30 \
+            --output "$TMP" \
+            "$URL" 2>/dev/null; then
+        mv "$TMP" "$DEST"
+        chmod +x "$DEST"
+        log "Updated: $SCRIPT"
+    else
+        rm -f "$TMP"
+        log "Failed to fetch: $SCRIPT"
+        ERRORS=$((ERRORS + 1))
+    fi
+done
+
+if [ "$ERRORS" -eq 0 ]; then
+    log "All scripts updated successfully"
+    exit 0
+else
+    log "Update completed with $ERRORS error(s)"
+    exit 1
+fi

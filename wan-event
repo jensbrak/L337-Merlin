@@ -1,0 +1,119 @@
+#!/bin/sh
+
+PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+LOG="/jffs/var/log/wan-history.log"
+STATE_UP="/tmp/wan-down.uptime"
+STATE_WALL="/tmp/wan-down.wall"
+REBOOT_MARKER="/jffs/var/log/planned-reboot.marker"
+LOGTAG="L337-wan-event"
+CONFIG="/jffs/configs/L337.conf"
+
+WAN_UNIT="$1"
+EVENT="$2"
+
+mkdir -p /jffs/var/log
+
+[ -r "$CONFIG" ] && . "$CONFIG"
+
+: "${L337_BOOT_RECONNECT_THRESHOLD:=600}"
+: "${L337_MARKER_VALIDITY:=1800}"
+
+log() {
+    logger -t "$LOGTAG" "$*"
+}
+
+uptime_s() {
+    awk '{print int($1)}' /proc/uptime
+}
+
+wall_ts() {
+    YEAR="$(date '+%Y')"
+    if [ "$YEAR" -lt 2025 ]; then
+        echo "unsynced"
+    else
+        date '+%Y-%m-%d %H:%M:%S'
+    fi
+}
+
+read_marker_field() {
+    FIELD="$1"
+    sed -n "s/.*${FIELD}=\\([^ ]*\\).*/\\1/p" "$REBOOT_MARKER" 2>/dev/null | tr -d '"'
+}
+
+classify_reconnect() {
+    BOOT_AGE="$(uptime_s)"
+
+    # If router booted recently, reconnect is boot-related.
+    if [ "$BOOT_AGE" -lt "$L337_BOOT_RECONNECT_THRESHOLD" ]; then
+        if [ -f "$REBOOT_MARKER" ]; then
+            MARKER_EPOCH="$(read_marker_field epoch)"
+            MARKER_REASON="$(read_marker_field reason)"
+            NOW_EPOCH="$(date +%s)"
+
+            if [ -n "$MARKER_EPOCH" ]; then
+                AGE=$((NOW_EPOCH - MARKER_EPOCH))
+                if [ "$AGE" -ge 0 ] && [ "$AGE" -lt "$L337_MARKER_VALIDITY" ]; then
+                    echo "expected_reboot:${MARKER_REASON:-planned}"
+                    return
+                fi
+            fi
+        fi
+
+        echo "unexpected_boot"
+        return
+    fi
+
+    echo "runtime_reconnect"
+}
+
+[ "$WAN_UNIT" = "0" ] || exit 0
+
+NOW_TS="$(wall_ts)"
+
+case "$EVENT" in
+    disconnected)
+        echo "$(uptime_s)" > "$STATE_UP"
+        echo "$NOW_TS" > "$STATE_WALL"
+        printf '%s event=disconnected unit=0\n' "$NOW_TS" >> "$LOG"
+        ;;
+
+    connected)
+        sleep 15
+
+        NOW_TS="$(wall_ts)"
+        WAN_IP="$(nvram get wan0_ipaddr)"
+        BOOT_AGE="$(uptime_s)"
+        CLASSIFICATION="$(classify_reconnect)"
+
+        /jffs/scripts/L337-log-dhcp-lease
+
+        if [ -f "$STATE_UP" ]; then
+            START_UP="$(cat "$STATE_UP" 2>/dev/null)"
+            END_UP="$(uptime_s)"
+            DOWNTIME=$((END_UP - START_UP))
+            [ "$DOWNTIME" -lt 0 ] && DOWNTIME=0
+            START_WALL="$(cat "$STATE_WALL" 2>/dev/null)"
+
+            printf '%s event=reconnect unit=0 ip=%s downtime_s=%s class=%s down_started="%s" boot_age_s=%s\n' \
+                "$NOW_TS" "$WAN_IP" "$DOWNTIME" "$CLASSIFICATION" "$START_WALL" "$BOOT_AGE" >> "$LOG"
+
+            rm -f "$STATE_UP" "$STATE_WALL"
+        else
+            printf '%s event=connected unit=0 ip=%s class=%s note=no_prior_disconnect_state boot_age_s=%s\n' \
+                "$NOW_TS" "$WAN_IP" "$CLASSIFICATION" "$BOOT_AGE" >> "$LOG"
+        fi
+
+        case "$CLASSIFICATION" in
+            expected_reboot:*)
+                rm -f "$REBOOT_MARKER"
+                ;;
+        esac
+
+        log "Primary WAN connected, invoking DDNS updater for IP ${WAN_IP} (class=${CLASSIFICATION})"
+        /jffs/scripts/ddns-start "$WAN_IP"
+        ;;
+
+esac
+
+exit 0

@@ -1,0 +1,38 @@
+#!/bin/sh
+
+PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+LOGTAG="L337-verify-ddns"
+CONFIG="/jffs/configs/L337.conf"
+
+log() {
+    logger -t "$LOGTAG" "$*"
+}
+
+[ -r "$CONFIG" ] || { log "Missing config: $CONFIG"; exit 1; }
+
+# shellcheck disable=SC1090
+. "$CONFIG"
+
+[ -n "$L337_DDNS_DOMAIN" ] || { log "L337_DDNS_DOMAIN not set in config"; exit 1; }
+
+WAN_IP="$(nvram get wan0_ipaddr)"
+DNS_IP="$(nslookup "$L337_DDNS_DOMAIN" 127.0.0.1 | awk '/^Address: / { print $2 }' | tail -n1)"
+
+if [ -z "$WAN_IP" ]; then
+    log "WAN IP unavailable"
+    exit 1
+fi
+
+if [ -z "$DNS_IP" ]; then
+    log "DNS lookup failed for $L337_DDNS_DOMAIN"
+    exit 1
+fi
+
+if [ "$WAN_IP" = "$DNS_IP" ]; then
+    log "DNS already correct ($WAN_IP)"
+    exit 0
+fi
+
+log "DNS mismatch: WAN=$WAN_IP DNS=$DNS_IP — updating"
+/jffs/scripts/ddns-start "$WAN_IP"

@@ -1,0 +1,6 @@
+# Live config contains credentials — never commit
+L337.conf
+
+# Temporary files created by scripts
+*.tmp
+*.tmp.*

@@ -1,0 +1,158 @@
+#!/bin/sh
+
+PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+LOGTAG="L337-ddns"
+CONFIG="/jffs/configs/L337.conf"
+CURL="/usr/sbin/curl"
+
+STAMP_DIR="/tmp/L337-ddns"
+STAMP_FILE="${STAMP_DIR}/last_success"
+
+log() {
+    logger -t "$LOGTAG" "$*"
+}
+
+success() {
+    /sbin/ddns_custom_updated 1
+    exit 0
+}
+
+fail() {
+    /sbin/ddns_custom_updated 0
+    exit 1
+}
+
+is_ipv4() {
+    echo "$1" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || return 1
+
+    OLDIFS="$IFS"
+    IFS='.'
+    set -- $1
+    IFS="$OLDIFS"
+
+    [ "$1" -le 255 ] 2>/dev/null || return 1
+    [ "$2" -le 255 ] 2>/dev/null || return 1
+    [ "$3" -le 255 ] 2>/dev/null || return 1
+    [ "$4" -le 255 ] 2>/dev/null || return 1
+    return 0
+}
+
+record_success_stamp() {
+    mkdir -p "$STAMP_DIR"
+    printf '%s %s\n' "$WAN_IP" "$NOW_EPOCH" > "$STAMP_FILE"
+}
+
+WAN_IP="$1"
+
+[ -r "$CONFIG" ] || { log "Missing config: $CONFIG"; fail; }
+
+# shellcheck disable=SC1090
+. "$CONFIG"
+
+: "${DDNS_WILDCARD:=NOCHG}"
+: "${L337_DDNS_VERBOSE_LOG:=0}"
+: "${L337_DDNS_COOLDOWN:=120}"
+
+[ -n "$DDNS_USER" ]        || { log "Missing DDNS_USER";        fail; }
+[ -n "$DDNS_PASS" ]        || { log "Missing DDNS_PASS";        fail; }
+[ -n "$DDNS_HOSTNAME" ]    || { log "Missing DDNS_HOSTNAME";    fail; }
+[ -n "$DDNS_UPDATE_URL" ]  || { log "Missing DDNS_UPDATE_URL";  fail; }
+
+[ -n "$WAN_IP" ]   || { log "Missing WAN IP";          fail; }
+is_ipv4 "$WAN_IP"  || { log "Invalid WAN IP: $WAN_IP"; fail; }
+
+[ -x "$CURL" ] || { log "curl not found at $CURL"; fail; }
+
+NOW_EPOCH="$(date +%s)"
+
+# Duplicate suppression: skip update if this IP was successfully pushed
+# within the last L337_DDNS_COOLDOWN seconds.
+if [ -f "$STAMP_FILE" ]; then
+    LAST_IP="$(awk '{print $1}' "$STAMP_FILE" 2>/dev/null)"
+    LAST_TS="$(awk '{print $2}' "$STAMP_FILE" 2>/dev/null)"
+
+    if [ "$LAST_IP" = "$WAN_IP" ] && [ -n "$LAST_TS" ]; then
+        AGE=$((NOW_EPOCH - LAST_TS))
+        if [ "$AGE" -ge 0 ] && [ "$AGE" -lt "$L337_DDNS_COOLDOWN" ]; then
+            log "Skipping duplicate update for ${WAN_IP}; last success ${AGE}s ago"
+            success
+        fi
+    fi
+fi
+
+URL="${DDNS_UPDATE_URL}&hostname=${DDNS_HOSTNAME}&myip=${WAN_IP}&wildcard=${DDNS_WILDCARD}"
+
+[ "$L337_DDNS_VERBOSE_LOG" = "1" ] && log "Updating ${DDNS_HOSTNAME} to ${WAN_IP}"
+
+TMP_BODY="/tmp/L337_ddns_body.$$"
+TMP_META="/tmp/L337_ddns_meta.$$"
+
+cleanup() {
+    rm -f "$TMP_BODY" "$TMP_META"
+}
+trap cleanup EXIT
+
+HTTP_CODE="$(
+    "$CURL" \
+        --connect-timeout 10 \
+        --max-time 20 \
+        --silent \
+        --show-error \
+        --output "$TMP_BODY" \
+        --write-out "%{http_code}" \
+        --user "${DDNS_USER}:${DDNS_PASS}" \
+        "$URL" 2>"$TMP_META"
+)"
+RC=$?
+
+BODY="$(cat "$TMP_BODY" 2>/dev/null)"
+ERRMSG="$(cat "$TMP_META" 2>/dev/null)"
+
+if [ $RC -ne 0 ]; then
+    log "curl failed rc=${RC}: ${ERRMSG}"
+    fail
+fi
+
+case "$BODY" in
+    good* )
+        log "Update successful: $BODY"
+        record_success_stamp
+        success
+        ;;
+    nochg* )
+        log "Provider reports no change: $BODY"
+        record_success_stamp
+        success
+        ;;
+    badauth* )
+        log "Authentication failed: $BODY"
+        fail
+        ;;
+    nohost* )
+        log "Hostname rejected: $BODY"
+        fail
+        ;;
+    abuse* )
+        log "Provider returned abuse: $BODY"
+        fail
+        ;;
+    "" )
+        if [ "$HTTP_CODE" = "200" ]; then
+            log "Update accepted with empty response body (HTTP 200)"
+            record_success_stamp
+            success
+        else
+            log "Empty response body with HTTP ${HTTP_CODE}"
+            fail
+        fi
+        ;;
+    * )
+        if [ "$HTTP_CODE" = "200" ]; then
+            log "HTTP 200 with unexpected body: $BODY"
+        else
+            log "Unexpected response HTTP ${HTTP_CODE}: $BODY"
+        fi
+        fail
+        ;;
+esac

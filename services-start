@@ -1,0 +1,24 @@
+#!/bin/sh
+
+PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+CONFIG="/jffs/configs/L337.conf"
+
+[ -r "$CONFIG" ] && . "$CONFIG"
+
+: "${L337_BOOT_SETTLE:=20}"
+: "${L337_CRON_LOG_ROTATE:=0 3 * * *}"
+: "${L337_CRON_DDNS_VERIFY:=0 */6 * * *}"
+
+(
+    # Allow core services to finish initialising before writing cron.
+    sleep "$L337_BOOT_SETTLE"
+
+    # Rebuild L337 cron jobs on every boot.
+    cru a rotate_wan_log "$L337_CRON_LOG_ROTATE /jffs/scripts/L337-rotate-wan-log"
+    cru a verify_ddns    "$L337_CRON_DDNS_VERIFY /jffs/scripts/L337-verify-ddns"
+
+    if [ -n "$L337_CRON_PLANNED_REBOOT" ]; then
+        cru a planned_reboot "$L337_CRON_PLANNED_REBOOT /jffs/scripts/L337-planned-reboot scheduled"
+    fi
+) &

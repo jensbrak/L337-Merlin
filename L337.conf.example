@@ -1,0 +1,103 @@
+# =============================================================================
+# L337.conf — L337-Merlin system configuration
+# =============================================================================
+# Copy this file to /jffs/configs/L337.conf and fill in your values.
+# This file is sourced as a shell script by all L337 scripts.
+# Rules: no spaces around '=', quote values containing spaces.
+# Never commit the live L337.conf to version control (it holds credentials).
+# =============================================================================
+
+
+# =============================================================================
+# DDNS — Provider credentials and endpoint
+# =============================================================================
+
+# Credentials for your DynDNS-compatible provider.
+DDNS_USER=""
+DDNS_PASS=""
+
+# The hostname to update (e.g. "home.example.com").
+DDNS_HOSTNAME=""
+
+# Base URL for your provider's DynDNS-compatible update endpoint.
+# Include any fixed query parameters required by the provider.
+# Example (Loopia): https://dyndns.loopia.se/?system=custom
+DDNS_UPDATE_URL=""
+
+# Include wildcard record in update. "ON" to enable, "NOCHG" to skip.
+DDNS_WILDCARD="NOCHG"
+
+
+# =============================================================================
+# DDNS — Verification and behaviour
+# =============================================================================
+
+# Domain resolved by L337-verify-ddns to check against current WAN IP.
+# Typically the same domain managed by DDNS_HOSTNAME.
+L337_DDNS_DOMAIN=""
+
+# Set to "1" to log each DDNS update attempt. "0" to suppress.
+L337_DDNS_VERBOSE_LOG="0"
+
+# Skip DDNS update if the same IP was successfully updated within this
+# many seconds. Prevents hammering the provider on rapid reconnects.
+# Default: 120
+L337_DDNS_COOLDOWN=120
+
+
+# =============================================================================
+# WAN event — Reconnect classification thresholds
+# =============================================================================
+
+# Reconnects within this many seconds of boot are classified as boot-related.
+# Default: 600
+L337_BOOT_RECONNECT_THRESHOLD=600
+
+# A planned-reboot marker is only valid if less than this many seconds old.
+# Guards against stale markers surviving long uptimes.
+# Default: 1800
+L337_MARKER_VALIDITY=1800
+
+
+# =============================================================================
+# Log rotation — Line caps
+# =============================================================================
+
+# Maximum lines to retain in wan-history.log.
+# Default: 2000
+L337_WAN_LOG_CAP=2000
+
+# Maximum lines to retain in wan-dhcp-leases.log.
+# Default: 1000
+L337_DHCP_LOG_CAP=1000
+
+
+# =============================================================================
+# Service startup
+# =============================================================================
+
+# Seconds to wait after boot before registering cron jobs.
+# Default: 20
+L337_BOOT_SETTLE=20
+
+# Cron schedule for log rotation. Default: daily at 03:00.
+L337_CRON_LOG_ROTATE="0 3 * * *"
+
+# Cron schedule for DDNS verification. Default: every 6 hours.
+L337_CRON_DDNS_VERIFY="0 */6 * * *"
+
+# Cron schedule for planned reboot. Leave empty to disable.
+# Default: daily at 06:00.
+L337_CRON_PLANNED_REBOOT="0 6 * * *"
+
+
+# =============================================================================
+# Static ARP — Wake-on-LAN targets
+# =============================================================================
+
+# Devices requiring persistent Layer 2 mappings for WoL via port forwarding.
+# One entry per line, format: IP,MAC,NAME
+# Entries must match "Manual Assignments" in the router WebUI (LAN > DHCP).
+L337_ARP_DEVICES="
+192.168.x.x,aa:bb:cc:dd:ee:ff,DEVICE_NAME
+"

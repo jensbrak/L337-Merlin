@@ -1,0 +1,26 @@
+#!/bin/sh
+
+LOG="/jffs/var/log/wan-dhcp-leases.log"
+
+echo
+echo "WAN DHCP lease statistics"
+echo "-------------------------"
+echo
+
+if [ ! -f "$LOG" ]; then
+    echo "No DHCP lease log found."
+    echo
+    exit 0
+fi
+
+echo "Unique IP addresses:"
+sed -n 's/.*ip=\([0-9.]*\).*/\1/p' "$LOG" | sort -u | wc -l
+echo
+
+echo "Lease durations observed:"
+sed -n 's/.*lease=\([0-9]*\).*/\1/p' "$LOG" | sort | uniq -c
+echo
+
+echo "Recent lease snapshots:"
+tail -10 "$LOG"
+echo

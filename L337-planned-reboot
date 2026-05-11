@@ -1,0 +1,16 @@
+#!/bin/sh
+
+PATH="/sbin:/bin:/usr/sbin:/usr/bin"
+
+MARKER="/jffs/var/log/planned-reboot.marker"
+LOGTAG="L337-planned-reboot"
+
+mkdir -p /jffs/var/log
+
+TS="$(date '+%Y-%m-%d %H:%M:%S')"
+EPOCH="$(date +%s)"
+REASON="${1:-scheduled}"
+
+printf 'ts="%s" epoch=%s reason=%s\n' "$TS" "$EPOCH" "$REASON" > "$MARKER"
+logger -t "$LOGTAG" "Marked planned reboot (reason=$REASON)"
+reboot

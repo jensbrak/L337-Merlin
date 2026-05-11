@@ -1,0 +1,21 @@
+#!/bin/sh
+
+LOG="/jffs/var/log/wan-dhcp-leases.log"
+mkdir -p /jffs/var/log
+
+TS="$(date '+%Y-%m-%d %H:%M:%S')"
+YEAR="$(date '+%Y')"
+
+WAN_IP="$(nvram get wan0_ipaddr)"
+WAN_GW="$(nvram get wan0_gateway)"
+WAN_DNS="$(nvram get wan0_dns)"
+WAN_PROTO="$(nvram get wan0_proto)"
+WAN_LEASE="$(nvram get wan0_lease)"
+WAN_LEASE_TIME="$(nvram get wan0_lease_time)"
+
+if [ "$YEAR" -lt 2025 ]; then
+    TS="unsynced"
+fi
+
+printf '%s event=dhcp ip=%s gateway=%s proto=%s lease=%s lease_time=%s dns="%s"\n' \
+    "$TS" "$WAN_IP" "$WAN_GW" "$WAN_PROTO" "$WAN_LEASE" "$WAN_LEASE_TIME" "$WAN_DNS" >> "$LOG"

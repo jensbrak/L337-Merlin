@@ -1,0 +1,55 @@
+#!/bin/sh
+
+LOG="/jffs/var/log/wan-history.log"
+
+if [ ! -f "$LOG" ]; then
+    echo "No WAN history log found."
+    exit 1
+fi
+
+RECONNECT_LINES="$(grep ' event=reconnect ' "$LOG")"
+
+echo
+echo "WAN statistics report"
+echo "====================="
+echo
+
+if [ -z "$RECONNECT_LINES" ]; then
+    echo "No reconnect events recorded yet."
+    echo
+    exit 0
+fi
+
+FIRST="$(printf '%s\n' "$RECONNECT_LINES" | head -1 | awk '{print $1" "$2}')"
+LAST="$(printf '%s\n'  "$RECONNECT_LINES" | tail -1 | awk '{print $1" "$2}')"
+
+TOTAL_RECONNECTS="$(printf '%s\n' "$RECONNECT_LINES" | wc -l)"
+TOTAL_DOWNTIME="$(printf '%s\n'   "$RECONNECT_LINES" | sed -n 's/.*downtime_s=\([0-9]*\).*/\1/p' | awk '{s+=$1} END{print s+0}')"
+AVG_DOWNTIME="$(printf '%s\n'     "$RECONNECT_LINES" | sed -n 's/.*downtime_s=\([0-9]*\).*/\1/p' | awk '{s+=$1;c++} END{if(c>0) printf "%.2f", s/c; else print 0}')"
+MAX_DOWNTIME="$(printf '%s\n'     "$RECONNECT_LINES" | sed -n 's/.*downtime_s=\([0-9]*\).*/\1/p' | sort -nr | head -1)"
+UNIQUE_IPS="$(printf '%s\n'       "$RECONNECT_LINES" | sed -n 's/.*ip=\([0-9.]*\).*/\1/p' | sort -u | wc -l)"
+LAST_IP="$(printf '%s\n'          "$RECONNECT_LINES" | sed -n 's/.*ip=\([0-9.]*\).*/\1/p' | tail -1)"
+
+EXPECTED_REBOOTS="$(  printf '%s\n' "$RECONNECT_LINES" | grep -c 'class=expected_reboot:')"
+UNEXPECTED_BOOTS="$(  printf '%s\n' "$RECONNECT_LINES" | grep -c 'class=unexpected_boot')"
+RUNTIME_RECONNECTS="$(printf '%s\n' "$RECONNECT_LINES" | grep -c 'class=runtime_reconnect')"
+
+echo "Log period:"
+echo "  From: $FIRST"
+echo "  To:   $LAST"
+echo
+echo "Reconnect events:      $TOTAL_RECONNECTS"
+echo "Expected reboot:       $EXPECTED_REBOOTS"
+echo "Unexpected boot:       $UNEXPECTED_BOOTS"
+echo "Runtime reconnects:    $RUNTIME_RECONNECTS"
+echo "Unique public IPs:     $UNIQUE_IPS"
+echo "Last IP address:       $LAST_IP"
+echo
+echo "Downtime statistics:"
+echo "  Total downtime:      ${TOTAL_DOWNTIME}s"
+echo "  Average downtime:    ${AVG_DOWNTIME}s"
+echo "  Longest downtime:    ${MAX_DOWNTIME}s"
+echo
+echo "Recent reconnects:"
+printf '%s\n' "$RECONNECT_LINES" | tail -10
+echo

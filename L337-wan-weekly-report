@@ -1,0 +1,9 @@
+#!/bin/sh
+
+echo
+echo "WAN weekly report"
+echo "================="
+echo
+
+/jffs/scripts/L337-wan-stats
+/jffs/scripts/L337-wan-lease-stats

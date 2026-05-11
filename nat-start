@@ -1,0 +1,34 @@
+#!/bin/sh
+
+# ==============================================================================
+# REMOTE WOL PERSISTENCE (STATIC ARP)
+# Maintains Layer 2 mappings to ensure port-forwarded WoL packets reach
+# sleeping targets.
+#
+# Configure devices in /jffs/configs/L337.conf (L337_ARP_DEVICES).
+# Entries must match "Manual Assignments" in the router WebUI (LAN > DHCP).
+# ==============================================================================
+
+LOGTAG="L337-nat-start"
+CONFIG="/jffs/configs/L337.conf"
+
+[ -r "$CONFIG" ] || { logger -t "$LOGTAG" "Missing config: $CONFIG"; exit 1; }
+
+# shellcheck disable=SC1090
+. "$CONFIG"
+
+[ -n "$L337_ARP_DEVICES" ] || { logger -t "$LOGTAG" "L337_ARP_DEVICES not set; skipping"; exit 0; }
+
+for ENTRY in $L337_ARP_DEVICES; do
+    CLEAN_ENTRY="$(echo "$ENTRY" | tr -d ' ')"
+    [ -z "$CLEAN_ENTRY" ] && continue
+
+    IP="$(echo "$CLEAN_ENTRY"   | cut -d',' -f1)"
+    MAC="$(echo "$CLEAN_ENTRY"  | cut -d',' -f2)"
+    NAME="$(echo "$CLEAN_ENTRY" | cut -d',' -f3)"
+
+    if [ -n "$IP" ] && [ -n "$MAC" ]; then
+        arp -s "$IP" "$MAC"
+        logger -t "$LOGTAG" "Bound static ARP for $NAME ($IP at $MAC)"
+    fi
+done

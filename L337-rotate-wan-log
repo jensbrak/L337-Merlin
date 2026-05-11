@@ -1,0 +1,23 @@
+#!/bin/sh
+
+CONFIG="/jffs/configs/L337.conf"
+
+[ -r "$CONFIG" ] && . "$CONFIG"
+
+: "${L337_WAN_LOG_CAP:=2000}"
+: "${L337_DHCP_LOG_CAP:=1000}"
+
+rotate_file() {
+    FILE="$1"
+    KEEP="$2"
+
+    [ -f "$FILE" ] || return 0
+
+    LINES="$(wc -l < "$FILE")"
+    if [ "$LINES" -gt "$KEEP" ]; then
+        tail -n "$KEEP" "$FILE" > "${FILE}.tmp" && mv "${FILE}.tmp" "$FILE"
+    fi
+}
+
+rotate_file /jffs/var/log/wan-history.log     "$L337_WAN_LOG_CAP"
+rotate_file /jffs/var/log/wan-dhcp-leases.log "$L337_DHCP_LOG_CAP"
