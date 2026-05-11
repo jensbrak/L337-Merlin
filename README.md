@@ -1,8 +1,8 @@
 # L337-Merlin
 
-A set of shell scripts for ASUS routers running [Asuswrt-Merlin](https://www.asuswrt-merlin.net/), providing event-driven DDNS updates, WAN telemetry, reconnect classification, and supporting utilities.
+A set of shell scripts for ASUS routers running [Asuswrt-Merlin](https://www.asuswrt-merlin.net/), providing event-driven DDNS updates, WAN telemetry, reconnect classification, and supporting utilities. Designed for reliability over complexity: event-driven where possible, no external package managers, no polling daemons.
 
-Designed for reliability over complexity: event-driven where possible, no external package managers, no polling daemons.
+Note: This is _not_ a ready-to-run application. I created and maintain it to fit my own preferences and requirements but figured it might be useful or interesting for others. It is designed to be generic and reusable, but what it does is quite specialized — and so are the requirements and assumptions it makes. If you're considering using this, please be sure to understand what it does and be aware of the implications of sections "Before you install" and "Security" below.
 
 ## Features
 
@@ -68,7 +68,9 @@ If any of the four files listed above exist, review their contents and back them
 /jffs/scripts/L337-update
 ```
 
-Pulls all scripts from `main`. Your `/jffs/configs/L337.conf` is never modified by the updater.
+The updater fetches `manifest.txt` from the repository first, then pulls every file listed in it. Your `/jffs/configs/L337.conf` is never modified.
+
+To add a script to the repository and have it deployed on next update, add its filename to `manifest.txt` — no changes to `L337-update` required.
 
 ## Configuration
 
@@ -110,7 +112,16 @@ These filenames are required by the firmware and cannot be changed.
 | `L337-wan-lease-stats` | CLI: DHCP lease history summary |
 | `L337-wan-stats` | CLI: WAN reconnect and downtime statistics |
 | `L337-wan-weekly-report` | CLI: Combined stats report |
-| `L337-update` | Pulls latest scripts from this repository |
+| `L337-update` | Fetches manifest and pulls latest scripts from this repository |
+
+### Repository files (not deployed to router)
+
+| File | Purpose |
+|---|---|
+| `manifest.txt` | Defines which files `L337-update` deploys; edit this to add or remove scripts |
+| `L337.conf.example` | Config template; copied to `/jffs/configs/L337.conf` once during setup |
+| `README.md` | This file |
+| `.gitignore` | Excludes `L337.conf` from version control |
 
 ## Log files
 
@@ -127,6 +138,17 @@ These filenames are required by the firmware and cannot be changed.
 - **No external dependencies** — BusyBox sh only; no Entware, no external packages
 - **Idempotent** — safe to run repeatedly without side effects
 - **Config-driven** — all personal and tunable values live in `L337.conf`, not in scripts
+
+## Security
+
+`L337-update` fetches a manifest and then pulls scripts from this repository directly onto your router, where they run as root with no sandboxing. This is a deliberate design choice given the environment — but it means the update mechanism is only as trustworthy as the repository it points to.
+
+**The trust model is explicit:**
+- You trust this repository because you control it
+- `L337-update` should only ever point at a repository you own or have audited
+- Protect your GitHub account accordingly — 2FA is strongly recommended
+
+If you fork this repository, update `REPO_RAW` in `L337-update` to point at your fork before deploying. _Running someone else's fork means trusting them with root access to your router._
 
 ## License
 

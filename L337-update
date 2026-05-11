@@ -3,9 +3,8 @@
 # =============================================================================
 # L337-update — Pull latest L337-Merlin scripts from GitHub.
 #
-# Run manually from the router to update all scripts to the latest version
-# on the main branch. Config files are never touched; local settings are
-# preserved.
+# Fetches the deployment manifest from the repository, then pulls every file
+# listed in it to /jffs/scripts/. Config files are never touched.
 #
 # Usage: /jffs/scripts/L337-update
 #
@@ -20,34 +19,45 @@ PATH="/sbin:/bin:/usr/sbin:/usr/bin"
 LOGTAG="L337-update"
 
 # Repository base URL. This is the single line to change if you are running
-# a fork — update GITHUB_USER and/or the repo name to match your fork.
+# a fork — update 'jensbrak' and/or the repo name to match your fork.
 REPO_RAW="https://raw.githubusercontent.com/jensbrak/L337-Merlin/main"
 
 INSTALL_DIR="/jffs/scripts"
 CURL="/usr/sbin/curl"
 
+TMP_MANIFEST="/tmp/L337_manifest.$$"
+
 log() { logger -t "$LOGTAG" "$*"; }
 
-# Merlin hook scripts retain their required firmware-facing filenames.
-# L337-specific scripts carry the L337- prefix.
-# Config files (/jffs/configs/L337.conf) are intentionally excluded.
-SCRIPTS="
-ddns-start
-nat-start
-services-start
-wan-event
-L337-log-dhcp-lease
-L337-planned-reboot
-L337-rotate-wan-log
-L337-verify-ddns
-L337-wan-lease-stats
-L337-wan-stats
-L337-wan-weekly-report
-L337-update
-"
+cleanup() {
+    rm -f "$TMP_MANIFEST"
+}
+trap cleanup EXIT
 
 if [ ! -x "$CURL" ]; then
     log "curl not found at $CURL; aborting"
+    exit 1
+fi
+
+# Fetch manifest — this defines what gets deployed.
+# To add or remove a script, edit manifest.txt in the repository.
+if ! "$CURL" \
+        --silent \
+        --show-error \
+        --fail \
+        --connect-timeout 10 \
+        --max-time 30 \
+        --output "$TMP_MANIFEST" \
+        "${REPO_RAW}/manifest.txt" 2>/dev/null; then
+    log "Failed to fetch manifest; aborting"
+    exit 1
+fi
+
+# Parse manifest: strip comments and blank lines.
+SCRIPTS="$(grep -v '^\s*#' "$TMP_MANIFEST" 2>/dev/null | grep -v '^\s*$')"
+
+if [ -z "$SCRIPTS" ]; then
+    log "Manifest is empty or unreadable; aborting"
     exit 1
 fi
 

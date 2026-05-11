@@ -1,0 +1,31 @@
+# =============================================================================
+# L337-Merlin deployment manifest
+# =============================================================================
+# Defines which files L337-update fetches from the repository and deploys
+# to /jffs/scripts/ on the router.
+#
+# Rules:
+#   - One filename per line
+#   - Lines starting with # are comments and are ignored
+#   - Blank lines are ignored
+#   - Do NOT list repo-only files (README.md, .gitignore, manifest.txt,
+#     L337.conf.example) — those are never deployed to the router
+# =============================================================================
+
+# Merlin event hooks (filenames required by firmware)
+ddns-start
+nat-start
+services-start
+wan-event
+
+# L337 utilities
+L337-log-dhcp-lease
+L337-planned-reboot
+L337-rotate-wan-log
+L337-verify-ddns
+L337-wan-lease-stats
+L337-wan-stats
+L337-wan-weekly-report
+
+# Updater (self-updates safely; runs from memory, replaces file on disk)
+L337-update
