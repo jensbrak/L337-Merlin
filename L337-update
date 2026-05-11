@@ -10,7 +10,7 @@
 # Usage: /jffs/scripts/L337-update
 #
 # Bootstrap (first install, run once from router SSH):
-#   curl -fsSL https://raw.githubusercontent.com/GITHUB_USER/L337-Merlin/main/L337-update \
+#   curl -fsSL https://raw.githubusercontent.com/jensbrak/L337-Merlin/main/L337-update \
 #       -o /jffs/scripts/L337-update && chmod +x /jffs/scripts/L337-update \
 #       && /jffs/scripts/L337-update
 # =============================================================================
@@ -21,7 +21,7 @@ LOGTAG="L337-update"
 
 # Repository base URL. This is the single line to change if you are running
 # a fork — update GITHUB_USER and/or the repo name to match your fork.
-REPO_RAW="https://raw.githubusercontent.com/GITHUB_USER/L337-Merlin/main"
+REPO_RAW="https://raw.githubusercontent.com/jensbrak/L337-Merlin/main"
 
 INSTALL_DIR="/jffs/scripts"
 CURL="/usr/sbin/curl"

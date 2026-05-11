@@ -44,14 +44,14 @@ If any of the four files listed above exist, review their contents and back them
 
 1. **Copy and edit the config:**
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/GITHUB_USER/L337-Merlin/main/L337.conf.example \
+   curl -fsSL https://raw.githubusercontent.com/jensbrak/L337-Merlin/main/L337.conf.example \
        -o /jffs/configs/L337.conf
    vi /jffs/configs/L337.conf
    ```
 
 2. **Bootstrap the updater and pull all scripts:**
    ```sh
-   curl -fsSL https://raw.githubusercontent.com/GITHUB_USER/L337-Merlin/main/L337-update \
+   curl -fsSL https://raw.githubusercontent.com/jensbrak/L337-Merlin/main/L337-update \
        -o /jffs/scripts/L337-update \
        && chmod +x /jffs/scripts/L337-update \
        && /jffs/scripts/L337-update
